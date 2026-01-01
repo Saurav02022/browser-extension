@@ -1,15 +1,35 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { FiSend } from "react-icons/fi";
+import { useAuth } from "../../context/AuthContext";
+import { getWebSocket } from "../../../services/websocket";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
   disabled?: boolean;
+  conversationId?: string;
 }
 
-const MessageInput = ({ onSend, disabled = false }: MessageInputProps) => {
+const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInputProps) => {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { user } = useAuth();
+
+  // Function to send typing event via WebSocket
+  const sendTypingEvent = (isTyping: boolean) => {
+    if (!conversationId || !user) return;
+    
+    const ws = getWebSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: isTyping ? 'TYPING_START' : 'TYPING_STOP',
+        conversationId: conversationId,
+        userId: user.id
+      }));
+    }
+  };
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -22,6 +42,16 @@ const MessageInput = ({ onSend, disabled = false }: MessageInputProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || sending || disabled) return;
+
+    // Stop typing indicator when sending message
+    if (isTyping) {
+      setIsTyping(false);
+      sendTypingEvent(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    }
 
     setSending(true);
     try {
@@ -47,7 +77,40 @@ const MessageInput = ({ onSend, disabled = false }: MessageInputProps) => {
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
     adjustTextareaHeight();
+    
+    // Handle typing indicator
+    if (!conversationId || !user) return;
+    
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Send typing start if not already typing and user has started typing
+    if (!isTyping && e.target.value.length > 0) {
+      setIsTyping(true);
+      sendTypingEvent(true);
+    }
+    
+    // Set timeout to send typing stop after 3 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      sendTypingEvent(false);
+      typingTimeoutRef.current = null;
+    }, 3000);
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTyping) {
+        sendTypingEvent(false);
+      }
+    };
+  }, [conversationId]);
 
   return (
     <form onSubmit={handleSubmit} className="border-t border-gray-100 p-4 bg-white">

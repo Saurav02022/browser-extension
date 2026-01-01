@@ -157,6 +157,23 @@ export async function initializeWebSocket() {
                     timestamp: data.data.timestamp
                 });
             }
+
+            if (data.type === 'USER_TYPING') {
+                console.log('[WebSocket-extension] Received typing event:', data);
+                
+                try {
+                    await chrome.runtime.sendMessage({
+                        type: 'USER_TYPING',
+                        payload: {
+                            conversationId: data.data.conversationId,
+                            userId: data.data.userId,
+                            isTyping: data.data.isTyping
+                        }
+                    });
+                } catch (error) {
+                    console.warn('[WebSocket-extension] Popup not available for USER_TYPING:', error);
+                }
+            }
         } catch (error) {
             console.error('[WebSocket-extension] Invalid Message format: ', error);
         }
