@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { FiSend } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
-import { getWebSocket } from "../../../services/websocket";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
@@ -17,18 +16,17 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
 
-  // Function to send typing event via WebSocket
-  const sendTypingEvent = (isTyping: boolean) => {
+  // Function to send typing event via background script
+  const sendTypingEvent = (typing: boolean) => {
     if (!conversationId || !user) return;
-    
-    const ws = getWebSocket();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: isTyping ? 'TYPING_START' : 'TYPING_STOP',
-        conversationId: conversationId,
-        userId: user.id
-      }));
-    }
+
+    chrome.runtime.sendMessage({
+      type: typing ? 'TYPING_START' : 'TYPING_STOP',
+      conversationId: conversationId,
+      userId: user.id
+    }).catch((error) => {
+      console.warn('[MessageInput] Error sending typing event:', error);
+    });
   };
 
   const adjustTextareaHeight = () => {
@@ -77,21 +75,21 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
     adjustTextareaHeight();
-    
+
     // Handle typing indicator
     if (!conversationId || !user) return;
-    
+
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
+
     // Send typing start if not already typing and user has started typing
     if (!isTyping && e.target.value.length > 0) {
       setIsTyping(true);
       sendTypingEvent(true);
     }
-    
+
     // Set timeout to send typing stop after 3 seconds of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
@@ -128,15 +126,14 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
             style={{ minHeight: '40px', maxHeight: '120px' }}
           />
         </div>
-        
+
         <button
           type="submit"
           disabled={!content.trim() || sending || disabled}
-          className={`p-2 rounded-lg transition-colors ${
-            content.trim() && !sending && !disabled
+          className={`p-2 rounded-lg transition-colors ${content.trim() && !sending && !disabled
               ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-          }`}
+            }`}
           style={{ marginBottom: '8px' }}
         >
           {sending ? (
