@@ -11,12 +11,12 @@ export function isWebSocketConnected(): boolean {
 }
 
 export async function initializeWebSocket() {
-    if(isWebSocketConnected()){
+    if (isWebSocketConnected()) {
         console.log('[WebSocket] Already connected, skipping initialization ...');
         return;
     }
 
-    const { user }  = await chrome.storage.local.get('user');
+    const { user } = await chrome.storage.local.get('user');
     if (!user) {
         console.log('[WebSocket] No user data found, skipping connection ...');
         return;
@@ -37,7 +37,7 @@ export async function initializeWebSocket() {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
 
         heartbeatInterval = setInterval(() => {
-            if(ws && ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
                 const heartbeatMessage = { type: 'ping' };
                 ws.send(JSON.stringify(heartbeatMessage));
             }
@@ -47,13 +47,13 @@ export async function initializeWebSocket() {
     ws.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
-            
-            if(data.type === 'auth' && data.success === 'false') {
+
+            if (data.type === 'auth' && data.success === 'false') {
                 console.warn('[WebSocket] Auth failed, closing connection...');
                 ws?.close();
             }
 
-            if(data.type === 'auth' && data.success) {
+            if (data.type === 'auth' && data.success) {
                 publishActiveTab();
             }
 
@@ -79,7 +79,7 @@ export async function initializeWebSocket() {
 
             if (data.type === 'NEW_MESSAGE') {
                 console.log('[WebSocket-extension] Received new message:', data);
-                
+
                 try {
                     await chrome.runtime.sendMessage({
                         type: 'NEW_MESSAGE',
@@ -99,7 +99,7 @@ export async function initializeWebSocket() {
             }
 
             if (data.type === 'FRIEND_ONLINE') {
-                
+
                 try {
                     await chrome.runtime.sendMessage({
                         type: 'FRIEND_ONLINE',
@@ -108,7 +108,7 @@ export async function initializeWebSocket() {
                 } catch (error) {
                     console.warn('[WebSocket-extension] Popup not available for FRIEND_ONLINE:', error);
                 }
-                
+
                 await handleFriendOnlineNotification({
                     userId: data.data.userId,
                     username: data.data.username,
@@ -119,7 +119,7 @@ export async function initializeWebSocket() {
 
             if (data.type === 'FRIEND_REQUEST_RECEIVED') {
                 console.log('[WebSocket-extension] Received friend request:', data);
-                
+
                 try {
                     await chrome.runtime.sendMessage({
                         type: 'FRIEND_REQUEST_RECEIVED',
@@ -140,7 +140,7 @@ export async function initializeWebSocket() {
 
             if (data.type === 'FRIEND_REQUEST_ACCEPTED') {
                 console.log('[WebSocket-extension] Friend request accepted:', data);
-                
+
                 try {
                     await chrome.runtime.sendMessage({
                         type: 'FRIEND_REQUEST_ACCEPTED',
@@ -160,7 +160,10 @@ export async function initializeWebSocket() {
 
             if (data.type === 'USER_TYPING') {
                 console.log('[WebSocket-extension] Received typing event:', data);
-                
+
+                // Update local background state
+                updateTypingState(data.data.conversationId, data.data.userId, data.data.isTyping);
+
                 try {
                     await chrome.runtime.sendMessage({
                         type: 'USER_TYPING',
@@ -184,25 +187,67 @@ export async function initializeWebSocket() {
     };
 
     ws.onclose = () => {
-        if( heartbeatInterval) clearInterval(heartbeatInterval);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
         heartbeatInterval = null;
         ws = null;
     };
 }
 
 export function closeWebSocket() {
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-  }
-  if (ws) {
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
     }
-    ws = null;
-  }
+    if (ws) {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close();
+        }
+        ws = null;
+    }
 }
 
 export function getWebSocket() {
     return ws;
+}
+
+// Track active typing users: conversationId -> Set<userId>
+const activeTypingUsers = new Map<string, Set<string>>();
+
+export function getTypingState() {
+    const state: Record<string, string[]> = {};
+    activeTypingUsers.forEach((userIds, conversationId) => {
+        if (userIds.size > 0) {
+            state[conversationId] = Array.from(userIds);
+        }
+    });
+    return state;
+}
+
+function updateTypingState(conversationId: string, userId: string, isTyping: boolean) {
+    if (isTyping) {
+        if (!activeTypingUsers.has(conversationId)) {
+            activeTypingUsers.set(conversationId, new Set());
+        }
+        activeTypingUsers.get(conversationId)?.add(userId);
+
+        // Safety cleanup: Auto-remove after 10 seconds to prevent stuck state
+        // if we miss a STOP event
+        setTimeout(() => {
+            const userIds = activeTypingUsers.get(conversationId);
+            if (userIds && userIds.has(userId)) {
+                userIds.delete(userId);
+                // If we removed it, we should theoretically notify the popup? 
+                // But for now let's just keep the internal state clean.
+            }
+        }, 10000);
+
+    } else {
+        const userIds = activeTypingUsers.get(conversationId);
+        if (userIds) {
+            userIds.delete(userId);
+            if (userIds.size === 0) {
+                activeTypingUsers.delete(conversationId);
+            }
+        }
+    }
 }

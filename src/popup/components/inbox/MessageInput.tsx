@@ -13,7 +13,7 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
 
   // Function to send typing event via background script
@@ -131,8 +131,8 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
           type="submit"
           disabled={!content.trim() || sending || disabled}
           className={`p-2 rounded-lg transition-colors ${content.trim() && !sending && !disabled
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            ? 'bg-blue-600 text-white hover:bg-blue-700'
+            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           style={{ marginBottom: '8px' }}
         >

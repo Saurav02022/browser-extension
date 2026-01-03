@@ -1,4 +1,4 @@
-import { closeWebSocket, initializeWebSocket, isWebSocketConnected, getWebSocket } from "../services/websocket";
+import { closeWebSocket, initializeWebSocket, isWebSocketConnected, getWebSocket, getTypingState } from "../services/websocket";
 import { tabTracing, publishActiveTab } from "../services/tabTracking";
 
 console.log('Background script loaded');
@@ -66,6 +66,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendTypingEvent(message.conversationId, message.userId, true);
   } else if (message.type === 'TYPING_STOP') {
     sendTypingEvent(message.conversationId, message.userId, false);
+  } else if (message.type === 'GET_TYPING_STATE') {
+    const state = getTypingState();
+    console.log('[Background] Sending typing state to popup:', state);
+    sendResponse(state);
   }
   return true;
 });

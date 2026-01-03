@@ -429,6 +429,14 @@ export const MessageProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (user) {
       loadConversations();
+
+      // Fetch initial typing state from background to handle persistence
+      chrome.runtime.sendMessage({ type: 'GET_TYPING_STATE' }, (state) => {
+        if (state) {
+          console.log('[MessageContext] Received initial typing state:', state);
+          setTypingUsers(state);
+        }
+      });
     }
   }, [user, loadConversations]);
 
