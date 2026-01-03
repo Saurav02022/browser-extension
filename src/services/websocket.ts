@@ -230,16 +230,8 @@ function updateTypingState(conversationId: string, userId: string, isTyping: boo
         }
         activeTypingUsers.get(conversationId)?.add(userId);
 
-        // Safety cleanup: Auto-remove after 10 seconds to prevent stuck state
-        // if we miss a STOP event
-        setTimeout(() => {
-            const userIds = activeTypingUsers.get(conversationId);
-            if (userIds && userIds.has(userId)) {
-                userIds.delete(userId);
-                // If we removed it, we should theoretically notify the popup? 
-                // But for now let's just keep the internal state clean.
-            }
-        }, 10000);
+        // Removed 10s timeout to allow long typing sessions. 
+        // We trust the backend/sender to send TYPING_STOP.
 
     } else {
         const userIds = activeTypingUsers.get(conversationId);
