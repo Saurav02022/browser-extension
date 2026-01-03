@@ -251,3 +251,19 @@ function updateTypingState(conversationId: string, userId: string, isTyping: boo
         }
     }
 }
+
+// Function to send outgoing typing events
+export function sendTypingEvent(conversationId: string, userId: string, isTyping: boolean) {
+    const ws = getWebSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: isTyping ? 'TYPING_START' : 'TYPING_STOP',
+            conversationId,
+            userId
+        }));
+        // We don't need to track our own typing in local state
+        console.log(`[WebSocket-service] Sent ${isTyping ? 'TYPING_START' : 'TYPING_STOP'}`);
+    } else {
+        console.warn('[WebSocket-service] Cannot send typing event: WebSocket not connected');
+    }
+}

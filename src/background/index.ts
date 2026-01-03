@@ -1,4 +1,4 @@
-import { closeWebSocket, initializeWebSocket, isWebSocketConnected, getWebSocket, getTypingState } from "../services/websocket";
+import { closeWebSocket, initializeWebSocket, isWebSocketConnected, getWebSocket, getTypingState, sendTypingEvent } from "../services/websocket";
 import { tabTracing, publishActiveTab } from "../services/tabTracking";
 
 console.log('Background script loaded');
@@ -21,19 +21,6 @@ function stopReconnectLoop() {
   if (reconnectInterval) {
     clearInterval(reconnectInterval);
     reconnectInterval = null;
-  }
-}
-
-// Helper function to send typing events via WebSocket
-function sendTypingEvent(conversationId: string, userId: string, isTyping: boolean) {
-  const ws = getWebSocket();
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: isTyping ? 'TYPING_START' : 'TYPING_STOP',
-      conversationId,
-      userId
-    }));
-    console.log(`[Background] Sent ${isTyping ? 'TYPING_START' : 'TYPING_STOP'} for conversation ${conversationId}`);
   }
 }
 
