@@ -16,6 +16,9 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user } = useAuth();
 
+  // Keep ref in sync with state for cleanup
+  const isTypingRef = useRef(isTyping);
+
   // Function to send typing event via background script
   const sendTypingEvent = (typing: boolean) => {
     if (!conversationId || !user) return;
@@ -98,13 +101,18 @@ const MessageInput = ({ onSend, disabled = false, conversationId }: MessageInput
     }, 3000);
   };
 
-  // Cleanup on unmount
+
+  useEffect(() => {
+    isTypingRef.current = isTyping;
+  }, [isTyping]);
+
+  // Cleanup on unmount or conversation change
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      if (isTyping) {
+      if (isTypingRef.current) {
         sendTypingEvent(false);
       }
     };
